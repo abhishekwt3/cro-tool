@@ -10,4 +10,4 @@ __pycache__
 .idea
 .vscode
 *.log
-yolov8n.py
+yolov8n.pt
