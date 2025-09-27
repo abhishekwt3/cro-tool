@@ -119,22 +119,24 @@ async def get_enabled_models():
 async def analyze_website(request: CROAnalysisRequest):
     """Analyze website for CRO optimization"""
     try:
-        logger.info(f"🔍 Starting analysis for: {request.url}")
+        # Convert Pydantic HttpUrl to string
+        url_str = str(request.url)
+        logger.info(f"🔍 Starting analysis for: {url_str}")
         
         if not analysis_engine:
             raise HTTPException(status_code=500, detail="Analysis engine not initialized")
         
-        # Run analysis
+        # Run analysis with string URL
         result = await analysis_engine.analyze_website(
-            url=request.url,
+            url=url_str,
             client_name=request.client_name
         )
         
-        logger.info(f"✅ Analysis completed for {request.url} - Score: {result.overall_score}")
+        logger.info(f"✅ Analysis completed for {url_str} - Score: {result.overall_score}")
         return result
         
     except Exception as e:
-        logger.error(f"❌ Analysis failed for {request.url}: {str(e)}")
+        logger.error(f"❌ Analysis failed for {str(request.url)}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.websocket("/api/analyze/ws")
@@ -176,14 +178,14 @@ async def analyze_website_realtime(websocket: WebSocket):
             "progress": 70
         })
         
-        # Run actual analysis
+        # Run actual analysis (URL is already a string from query params)
         result = await analysis_engine.analyze_website(url)
         
         await websocket.send_json({
             "status": "complete",
             "message": "Analysis completed successfully!",
             "progress": 100,
-            "report": result.dict(),
+            "report": result.model_dump(),  # Updated for Pydantic v2
             "models_used": result.models_used
         })
         

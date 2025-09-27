@@ -49,11 +49,12 @@ class CROAnalysisEngine:
         # Handle errors gracefully
         if isinstance(screenshot_data, Exception):
             logger.error(f"Screenshot capture failed: {screenshot_data}")
-            screenshot_data = None
+            screenshot_data = (None, None)
         
         if isinstance(html_data, Exception):
             logger.error(f"HTML extraction failed: {html_data}")
-            html_data = None
+            from app.models import CROData
+            html_data = CROData()
         
         # Run AI analysis
         if screenshot_data and screenshot_data[0]:  # Desktop screenshot
@@ -124,9 +125,9 @@ class CROAnalysisEngine:
                     trust_signals_score=report.category_scores.trust_signals,
                     coupons_score=report.category_scores.coupons,
                     delivery_score=report.category_scores.delivery,
-                    html_elements=report.element_analysis.dict(),
-                    ai_insights=report.visual_analysis.dict(),
-                    recommendations=[rec.dict() for rec in report.recommendations],
+                    html_elements=report.element_analysis.model_dump(),  # Updated for Pydantic v2
+                    ai_insights=report.visual_analysis.model_dump(),     # Updated for Pydantic v2
+                    recommendations=[rec.model_dump() for rec in report.recommendations],  # Updated for Pydantic v2
                     models_used=report.models_used,
                     analysis_date=report.analysis_date
                 )

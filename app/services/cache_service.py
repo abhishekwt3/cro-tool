@@ -1,11 +1,13 @@
 """Caching service for analysis results"""
 
+import os
 import json
 import hashlib
-import aioredis
+import redis.asyncio as redis
 import logging
-from typing import Optional
+from typing import Optional, Union
 from datetime import timedelta
+from pydantic import HttpUrl
 
 from app.models import CROAnalysisResponse
 
@@ -21,19 +23,26 @@ class CacheService:
         """Initialize Redis connection"""
         try:
             redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-            self.redis = await aioredis.from_url(redis_url)
+            self.redis = redis.from_url(redis_url, decode_responses=True)
             await self.redis.ping()
             logger.info("✅ Redis cache connected")
         except Exception as e:
             logger.warning(f"⚠️  Redis not available, using memory cache: {e}")
             self.redis = None
     
-    def _generate_cache_key(self, url: str) -> str:
+    def _url_to_string(self, url: Union[str, HttpUrl]) -> str:
+        """Convert URL to string, handling both string and HttpUrl types"""
+        if isinstance(url, str):
+            return url
+        return str(url)
+    
+    def _generate_cache_key(self, url: Union[str, HttpUrl]) -> str:
         """Generate cache key for URL"""
-        url_hash = hashlib.md5(url.encode()).hexdigest()
+        url_str = self._url_to_string(url)
+        url_hash = hashlib.md5(url_str.encode()).hexdigest()
         return f"cro:analysis:{url_hash}"
     
-    async def get_cached_analysis(self, url: str) -> Optional[CROAnalysisResponse]:
+    async def get_cached_analysis(self, url: Union[str, HttpUrl]) -> Optional[CROAnalysisResponse]:
         """Get cached analysis result"""
         cache_key = self._generate_cache_key(url)
         
@@ -54,26 +63,27 @@ class CacheService:
         
         return None
     
-    async def cache_analysis(self, url: str, analysis: CROAnalysisResponse):
+    async def cache_analysis(self, url: Union[str, HttpUrl], analysis: CROAnalysisResponse):
         """Cache analysis result"""
         cache_key = self._generate_cache_key(url)
         
         try:
             # Cache in Redis
             if self.redis:
-                cached_data = analysis.json()
+                cached_data = analysis.model_dump_json()  # Updated from .json() for Pydantic v2
                 await self.redis.setex(cache_key, self.cache_ttl, cached_data)
             
             # Also cache in memory (with size limit)
             if len(self.memory_cache) < 100:  # Limit memory cache size
                 self.memory_cache[cache_key] = analysis
             
-            logger.info(f"📦 Cached analysis for {url}")
+            url_str = self._url_to_string(url)
+            logger.info(f"📦 Cached analysis for {url_str}")
             
         except Exception as e:
             logger.error(f"Cache set error: {e}")
     
-    async def invalidate_cache(self, url: str):
+    async def invalidate_cache(self, url: Union[str, HttpUrl]):
         """Invalidate cached analysis"""
         cache_key = self._generate_cache_key(url)
         
@@ -94,4 +104,4 @@ class CacheService:
     async def close(self):
         """Close cache connections"""
         if self.redis:
-            await self.redis.close()
+            await self.redis.aclose()  # Updated from .close() to .aclose()

@@ -20,7 +20,15 @@ class ScrapingService:
         """Initialize Playwright browser"""
         try:
             self.playwright = await async_playwright().start()
-            self.browser = await self.playwright.chromium.launch(headless=True)
+            self.browser = await self.playwright.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox', 
+                    '--disable-dev-shm-usage',
+                    '--disable-blink-features=AutomationControlled',  # Avoid bot detection
+                    '--disable-features=VizDisplayCompositor'
+                ]
+            )
             logger.info("✅ Scraping service initialized")
         except Exception as e:
             logger.error(f"❌ Failed to initialize scraping service: {e}")
@@ -33,7 +41,15 @@ class ScrapingService:
         
         try:
             page = await self.browser.new_page()
-            await page.goto(url, wait_until="networkidle", timeout=30000)
+            
+            # Set a real user agent to avoid bot detection
+            await page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+            })
+            
+            # More lenient navigation - use domcontentloaded instead of networkidle
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)  # Increased timeout
+            await page.wait_for_timeout(2000)  # Wait for some dynamic content
             
             # Get page content
             html_content = await page.content()
