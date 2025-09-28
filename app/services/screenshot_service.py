@@ -2,6 +2,9 @@
 
 import asyncio
 import logging
+import os
+from datetime import datetime
+from urllib.parse import urlparse
 from playwright.async_api import async_playwright
 from typing import Tuple
 
@@ -11,6 +14,7 @@ class ScreenshotService:
     def __init__(self):
         self.playwright = None
         self.browser = None
+        self.save_screenshots = True  # Set to True to save screenshots for debugging
         
     async def initialize(self):
         """Initialize Playwright browser"""
@@ -30,6 +34,13 @@ class ScreenshotService:
             logger.error(f"❌ Failed to initialize screenshot service: {e}")
             raise
     
+    def _get_safe_filename(self, url: str) -> str:
+        """Generate safe filename from URL"""
+        parsed = urlparse(url)
+        domain = parsed.netloc.replace('www.', '').replace('.', '_')
+        timestamp = datetime.now().strftime('%H%M%S')
+        return f"{domain}_{timestamp}"
+    
     async def capture_website(self, url: str) -> Tuple[bytes, bytes]:
         """Capture desktop and mobile screenshots"""
         if not self.browser:
@@ -37,6 +48,11 @@ class ScreenshotService:
         
         desktop_screenshot = None
         mobile_screenshot = None
+        
+        # Create screenshots directory if it doesn't exist
+        if self.save_screenshots:
+            os.makedirs('screenshots', exist_ok=True)
+            safe_filename = self._get_safe_filename(url)
         
         try:
             # Desktop screenshot
@@ -54,6 +70,14 @@ class ScreenshotService:
             await page.wait_for_timeout(3000)  # Wait a bit more for dynamic content
             
             desktop_screenshot = await page.screenshot(full_page=True)
+            
+            # Save desktop screenshot for debugging
+            if self.save_screenshots:
+                desktop_path = f'screenshots/{safe_filename}_desktop.png'
+                with open(desktop_path, 'wb') as f:
+                    f.write(desktop_screenshot)
+                logger.info(f"💾 Desktop screenshot saved: {desktop_path}")
+            
             await page.close()
             
             # Mobile screenshot
@@ -69,9 +93,22 @@ class ScreenshotService:
             await page.wait_for_timeout(3000)
             
             mobile_screenshot = await page.screenshot(full_page=True)
+            
+            # Save mobile screenshot for debugging
+            if self.save_screenshots:
+                mobile_path = f'screenshots/{safe_filename}_mobile.png'
+                with open(mobile_path, 'wb') as f:
+                    f.write(mobile_screenshot)
+                logger.info(f"💾 Mobile screenshot saved: {mobile_path}")
+            
             await page.close()
             
             logger.info(f"📸 Screenshots captured for {url}")
+            
+            if self.save_screenshots:
+                logger.info(f"🔍 Check screenshots folder to see what YOLO will analyze:")
+                logger.info(f"   Desktop: screenshots/{safe_filename}_desktop.png")
+                logger.info(f"   Mobile:  screenshots/{safe_filename}_mobile.png")
             
         except Exception as e:
             logger.error(f"Screenshot capture failed for {url}: {e}")
