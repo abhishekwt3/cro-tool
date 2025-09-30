@@ -1,4 +1,4 @@
-"""Enhanced Vision Manager with CRO Framework Integration - FIXED VERSION"""
+"""Enhanced Vision Manager - Gemini Pro Vision Only"""
 
 import logging
 from typing import List, Dict, Any
@@ -6,92 +6,46 @@ import asyncio
 
 from app.models import AIInsights, CROData, Recommendation
 
-# Import the fixed Gemini model
-try:
-    from fixed_gemini_vision_model import GeminiVisionModel
-    GEMINI_AVAILABLE = True
-except ImportError:
-    try:
-        from gemini_vision_model import GeminiVisionModel
-        GEMINI_AVAILABLE = True
-    except ImportError:
-        GEMINI_AVAILABLE = False
-
-# Try to import Claude
-try:
-    from app.vision.claude_model import ClaudeVisionModel
-    CLAUDE_AVAILABLE = True
-except ImportError:
-    CLAUDE_AVAILABLE = False
+# Import only Gemini model
+from gemini_vision_model import GeminiVisionModel
 
 logger = logging.getLogger(__name__)
 
 # ====================================================================
-# 🎛️ VISION MODEL CONFIGURATION - ENABLE/DISABLE MODELS HERE
+# 🎛️ VISION MODEL CONFIGURATION - GEMINI ONLY
 # ====================================================================
 
-# Enable/Disable Models by changing these values
-ENABLE_CLAUDE_VISION = False      # Set to False to disable Claude
-ENABLE_GEMINI_VISION = True       # 🚀 NEW: Google Gemini Pro Vision
+ENABLE_GEMINI_VISION = True       # Gemini Pro Vision 2.5
 ENABLE_FRAMEWORK_ANALYSIS = True  # CRO Framework Analysis
-
-# Legacy YOLO support (deprecated in favor of Gemini)
-ENABLE_YOLO_VISION = False        # Disabled - replaced by Gemini
 
 # ====================================================================
 
 class EnhancedVisionManager:
-    """Enhanced Vision Manager with CRO Framework Integration"""
+    """Enhanced Vision Manager with Gemini Pro Vision"""
     
     def __init__(self):
         self.models = []
-        self.claude_model = None
         self.gemini_model = None
         self.framework_enabled = ENABLE_FRAMEWORK_ANALYSIS
         
     async def initialize_models(self):
-        """Initialize enabled AI models"""
-        logger.info("🤖 Initializing enhanced AI vision models...")
-        
-        # Initialize Claude Vision Model
-        if ENABLE_CLAUDE_VISION and CLAUDE_AVAILABLE:
-            try:
-                self.claude_model = ClaudeVisionModel()
-                await self.claude_model.initialize()
-                if self.claude_model.is_enabled():
-                    self.models.append(self.claude_model)
-                    logger.info("✅ Claude Vision Model enabled")
-                else:
-                    logger.warning("⚠️  Claude Vision Model disabled (no API key)")
-            except Exception as e:
-                logger.error(f"❌ Claude Vision Model failed to initialize: {e}")
-        else:
-            if ENABLE_CLAUDE_VISION and not CLAUDE_AVAILABLE:
-                logger.warning("⚠️  Claude Vision enabled but not available")
-            else:
-                logger.info("🚫 Claude Vision Model disabled by configuration")
+        """Initialize Gemini Pro Vision model"""
+        logger.info("🤖 Initializing AI vision model...")
         
         # Initialize Gemini Pro Vision Model
-        if ENABLE_GEMINI_VISION and GEMINI_AVAILABLE:
+        if ENABLE_GEMINI_VISION:
             try:
                 self.gemini_model = GeminiVisionModel()
                 await self.gemini_model.initialize()
                 if self.gemini_model.is_enabled():
                     self.models.append(self.gemini_model)
-                    logger.info("✅ Gemini Pro Vision Model enabled")
+                    logger.info("✅ Gemini Pro Vision 2.5 enabled")
                 else:
-                    logger.warning("⚠️  Gemini Pro Vision Model disabled (no API key)")
+                    logger.warning("⚠️  Gemini Pro Vision disabled (no API key)")
             except Exception as e:
-                logger.error(f"❌ Gemini Pro Vision Model failed to initialize: {e}")
+                logger.error(f"❌ Gemini Pro Vision failed to initialize: {e}")
         else:
-            if ENABLE_GEMINI_VISION and not GEMINI_AVAILABLE:
-                logger.warning("⚠️  Gemini Vision enabled but not available")
-            else:
-                logger.info("🚫 Gemini Pro Vision Model disabled by configuration")
-        
-        # Legacy YOLO Support Warning
-        if ENABLE_YOLO_VISION:
-            logger.warning("⚠️  YOLO Vision is deprecated. Using Gemini Pro Vision for better CRO analysis.")
+            logger.info("🚫 Gemini Pro Vision disabled by configuration")
         
         # Framework Analysis
         if ENABLE_FRAMEWORK_ANALYSIS:
@@ -99,8 +53,7 @@ class EnhancedVisionManager:
         else:
             logger.info("🚫 CRO Framework Analysis disabled")
         
-        logger.info(f"🎯 Enhanced Vision Manager initialized with {len(self.models)} AI models + Framework Analysis")
-        logger.info(f"🚀 Active Models: {[model.get_model_name() for model in self.models]}")
+        logger.info(f"🎯 Vision Manager initialized with {len(self.models)} AI model + Framework Analysis")
     
     async def analyze_with_all_models_and_framework(
         self, 
@@ -108,7 +61,7 @@ class EnhancedVisionManager:
         html_data: CROData, 
         framework_insights: AIInsights = None
     ) -> AIInsights:
-        """Run analysis with all enabled models and framework"""
+        """Run analysis with Gemini and framework"""
         
         all_insights = []
         
@@ -117,20 +70,14 @@ class EnhancedVisionManager:
             all_insights.append(framework_insights)
             logger.info("📊 Framework analysis included")
         
-        # Run AI model analysis if we have models
+        # Run Gemini analysis if available
         if self.models:
-            # Run all models concurrently
-            tasks = []
             for model in self.models:
-                task = asyncio.create_task(model.analyze_screenshot(screenshot, html_data))
-                tasks.append(task)
-            
-            # Collect results
-            for task in tasks:
                 try:
-                    result = await task
+                    result = await model.analyze_screenshot(screenshot, html_data)
                     if result:
                         all_insights.append(result)
+                        logger.info(f"🤖 {model.get_model_name()} analysis completed")
                 except Exception as e:
                     logger.error(f"Model analysis failed: {e}")
         
@@ -138,7 +85,7 @@ class EnhancedVisionManager:
         if not all_insights:
             return self._get_enhanced_fallback_analysis(html_data)
         
-        # Combine all insights (framework + AI models)
+        # Combine all insights (framework + Gemini)
         return self._combine_enhanced_insights(all_insights, html_data)
     
     def _combine_enhanced_insights(self, insights_list: List[AIInsights], html_data: CROData) -> AIInsights:
@@ -169,35 +116,25 @@ class EnhancedVisionManager:
             if ai_insights:
                 self._enhance_framework_with_ai(combined, ai_insights)
         else:
-            # Fall back to traditional AI combination
+            # Fall back to AI combination
             combined = self._combine_ai_insights(ai_insights)
         
-        # Generate meta-insights about the analysis quality
+        # Add meta-insights about analysis quality
         combined = self._add_meta_insights(combined, len(insights_list))
         
-        logger.info(f"🔄 Combined insights from {len(insights_list)} sources (Framework + AI)")
+        logger.info(f"🔄 Combined insights from {len(insights_list)} sources (Framework + Gemini)")
         return combined
     
     def _enhance_framework_with_ai(self, framework_insights: AIInsights, ai_insights: List[AIInsights]):
-        """Enhance framework insights with AI model results"""
+        """Enhance framework insights with Gemini results"""
         
-        # Add AI-specific analyses to framework insights
         for ai_insight in ai_insights:
-            # Preserve Claude analysis
-            if hasattr(ai_insight, 'claude_analysis') and ai_insight.claude_analysis:
-                framework_insights.claude_analysis = ai_insight.claude_analysis
-            
-            # Legacy YOLO support (if somehow still present)
-            if hasattr(ai_insight, 'yolo_analysis') and ai_insight.yolo_analysis:
-                framework_insights.yolo_analysis = ai_insight.yolo_analysis
-            
             # Merge visual and mobile issues
             framework_insights.visual_issues.extend(ai_insight.visual_issues)
             framework_insights.mobile_issues.extend(ai_insight.mobile_issues)
             
             # Add AI recommendations with lower priority if framework already has recommendations
             for rec in ai_insight.recommendations:
-                # Check if framework already covers this category
                 framework_categories = [r.category for r in framework_insights.recommendations]
                 if rec.category not in framework_categories:
                     framework_insights.recommendations.append(rec)
@@ -255,23 +192,14 @@ class EnhancedVisionManager:
             issue for insights in ai_insights for issue in insights.mobile_issues
         ]))
         
-        # Add model-specific results
-        for insights in ai_insights:
-            if hasattr(insights, 'claude_analysis') and insights.claude_analysis:
-                combined.claude_analysis = insights.claude_analysis
-            if hasattr(insights, 'yolo_analysis') and insights.yolo_analysis:
-                combined.yolo_analysis = insights.yolo_analysis
-        
         return combined
     
     def _add_meta_insights(self, insights: AIInsights, analysis_count: int) -> AIInsights:
         """Add meta-insights about analysis quality and coverage"""
         
         # Add analysis quality indicators
-        if analysis_count >= 3:  # Framework + 2 AI models
-            insights.visual_issues.insert(0, f"Comprehensive analysis using {analysis_count} methods")
-        elif analysis_count == 2:
-            insights.visual_issues.insert(0, f"Dual analysis using {analysis_count} methods")
+        if analysis_count >= 2:  # Framework + Gemini
+            insights.visual_issues.insert(0, f"Comprehensive analysis using {analysis_count} methods (Framework + Gemini)")
         
         # Add coverage indicators
         if "navigation" in insights.category_scores:
@@ -284,14 +212,6 @@ class EnhancedVisionManager:
             insights.visual_issues.append("✅ Technical performance assessed")
         if "psychological" in insights.category_scores:
             insights.visual_issues.append("✅ User psychology factors evaluated")
-        
-        # Add AI model indicators
-        if hasattr(insights, 'claude_analysis') and insights.claude_analysis:
-            insights.visual_issues.append("🤖 Claude Vision analysis included")
-        
-        # Check for Gemini in visual_issues (since we add it there)
-        if any("Gemini Pro Vision" in issue for issue in insights.visual_issues):
-            insights.visual_issues.append("🚀 Gemini Pro Vision analysis included")
         
         return insights
     
@@ -330,13 +250,13 @@ class EnhancedVisionManager:
                 source="framework_fallback"
             ))
         
-        # AI model recommendations
+        # AI model recommendation
         recommendations.append(Recommendation(
             category="system",
             priority="medium",
-            issue="AI analysis unavailable",
-            solution="Enable Claude Vision and/or Gemini Pro Vision for comprehensive insights",
-            impact="Could provide advanced UI analysis and CRO recommendations",
+            issue="Gemini Pro Vision unavailable",
+            solution="Configure Gemini API key for advanced AI analysis",
+            impact="Could provide AI-powered UI analysis and CRO recommendations",
             source="framework_fallback"
         ))
         
@@ -368,26 +288,17 @@ class EnhancedVisionManager:
         if self.framework_enabled:
             methods.append("CRO Framework Analysis")
         
-        # Add note about deprecated YOLO if someone tries to enable it
-        if ENABLE_YOLO_VISION:
-            methods.append("YOLOv8 (Deprecated - Use Gemini)")
-        
         return methods
     
     async def get_models_status(self) -> Dict[str, Any]:
         """Get detailed status of all analysis methods"""
         status = {
-            "claude_vision": {
-                "enabled": ENABLE_CLAUDE_VISION,
-                "initialized": self.claude_model is not None,
-                "ready": self.claude_model.is_enabled() if self.claude_model else False,
-                "description": "Advanced design and UX analysis"
-            },
             "gemini_vision": {
                 "enabled": ENABLE_GEMINI_VISION,
                 "initialized": self.gemini_model is not None,
                 "ready": self.gemini_model.is_enabled() if self.gemini_model else False,
-                "description": "AI-powered UI element detection and CRO analysis"
+                "model": "Gemini 2.5 Pro Vision",
+                "description": "AI-powered CRO analysis and UI element detection"
             },
             "framework_analysis": {
                 "enabled": ENABLE_FRAMEWORK_ANALYSIS,
@@ -397,15 +308,6 @@ class EnhancedVisionManager:
                 "description": "5-point CRO framework analysis"
             }
         }
-        
-        # Add legacy YOLO status if somehow still relevant
-        if ENABLE_YOLO_VISION:
-            status["yolo_vision_legacy"] = {
-                "enabled": False,
-                "initialized": False,
-                "ready": False,
-                "description": "Deprecated - replaced by Gemini Pro Vision"
-            }
         
         return status
     

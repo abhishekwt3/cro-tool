@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 import asyncio
 
 from app.models import AIInsights, CROData
-from app.vision.claude_model import ClaudeVisionModel
+from archive.claude_model import ClaudeVisionModel
 from app.vision.yolo_model import YOLOVisionModel
 
 logger = logging.getLogger(__name__)

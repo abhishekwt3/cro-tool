@@ -1,4 +1,4 @@
-"""Gemini Pro Vision Model for UI Element Detection and CRO Analysis - FIXED VERSION"""
+"""Gemini Pro Vision Model for UI Element Detection and CRO Analysis"""
 
 import os
 import time
@@ -57,7 +57,7 @@ class GeminiVisionModel:
             genai.configure(api_key=self.api_key)
             
             # Initialize the model
-            self.model = genai.GenerativeModel('gemini-2.5-pro')
+            self.model = genai.GenerativeModel('gemini-2.5-flash')
             
             # Test the model with a simple request
             await asyncio.to_thread(self._test_model)
@@ -108,26 +108,21 @@ class GeminiVisionModel:
             # Parse the response
             insights = await self._parse_gemini_response(response.text, html_data)
             
-            # Add Gemini-specific analysis results to visual_issues for reporting
-            processing_time = time.time() - start_time
-            gemini_info = f"🚀 Gemini Pro Vision analysis completed in {processing_time:.2f}s"
-            insights.visual_issues.insert(0, gemini_info)
-            
-            # Extract metrics for logging
+            # Add Gemini-specific analysis results
             gemini_results = GeminiResults()
-            gemini_results.processing_time = processing_time
+            gemini_results.processing_time = time.time() - start_time
             gemini_results.raw_analysis = response.text
             gemini_results = self._extract_gemini_metrics(response.text, gemini_results)
             
-            # Log Gemini metrics (don't add to insights object to avoid field errors)
-            logger.info(f"🤖 Gemini detected {gemini_results.ui_elements_detected} UI elements")
-            logger.info(f"🎯 Found {gemini_results.cta_buttons_found} CTA buttons, {gemini_results.trust_signals_found} trust signals")
+            # Add to insights
+            insights.gemini_analysis = gemini_results
             
             # Mark recommendations as from Gemini
             for rec in insights.recommendations:
                 rec.source = "gemini"
             
-            logger.info(f"🤖 Gemini analyzed UI in {processing_time:.2f}s")
+            logger.info(f"🤖 Gemini analyzed UI in {gemini_results.processing_time:.2f}s")
+            logger.info(f"📊 Found {gemini_results.ui_elements_detected} UI elements, {gemini_results.cta_buttons_found} CTAs")
             
             return insights
             

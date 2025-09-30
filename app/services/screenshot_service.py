@@ -106,7 +106,7 @@ class ScreenshotService:
             logger.info(f"📸 Screenshots captured for {url}")
             
             if self.save_screenshots:
-                logger.info(f"🔍 Check screenshots folder to see what YOLO will analyze:")
+                logger.info(f"🔍 Check screenshots folder for visual analysis:")
                 logger.info(f"   Desktop: screenshots/{safe_filename}_desktop.png")
                 logger.info(f"   Mobile:  screenshots/{safe_filename}_mobile.png")
             

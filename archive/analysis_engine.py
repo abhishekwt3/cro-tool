@@ -9,8 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from app.models import CROAnalysisResponse, CategoryScores
 from app.services.cache_service import CacheService
 from app.services.screenshot_service import ScreenshotService
-from app.services.scraping_service import ScrapingService
-from app.vision.vision_manager import VisionManager
+from archive.scraping_service import ScrapingService
+from archive.vision_manager import VisionManager
 from app.database import async_session, WebsiteAnalysis
 
 logger = logging.getLogger(__name__)

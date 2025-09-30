@@ -1,4 +1,4 @@
-"""Pydantic models for CRO Analysis"""
+"""Pydantic models for CRO Analysis with Framework Feedback"""
 
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -74,7 +74,7 @@ class Recommendation(BaseModel):
     issue: str
     solution: str
     impact: str
-    source: str  # claude, yolo, combined, fallback
+    source: str  # gemini, framework, combined, fallback
 
 class CategoryScores(BaseModel):
     product_page: int = 0
@@ -84,6 +84,30 @@ class CategoryScores(BaseModel):
     coupons: int = 0
     delivery: int = 0
 
+# NEW: Framework feedback model
+class FrameworkFeedback(BaseModel):
+    """Detailed feedback for a framework category"""
+    category: str
+    score: int
+    strengths: List[str] = []  # What's done well (3-4 points)
+    improvements: List[str] = []  # What can be improved (3-4 points)
+    metrics: Dict[str, Any] = {}
+
+# NEW: Lighthouse performance metrics
+class LighthouseMetrics(BaseModel):
+    """Lighthouse performance audit results"""
+    performance_score: Optional[int] = None  # 0-100
+    accessibility_score: Optional[int] = None
+    best_practices_score: Optional[int] = None
+    seo_score: Optional[int] = None
+    first_contentful_paint: Optional[float] = None  # milliseconds
+    speed_index: Optional[float] = None
+    largest_contentful_paint: Optional[float] = None
+    time_to_interactive: Optional[float] = None
+    total_blocking_time: Optional[float] = None
+    cumulative_layout_shift: Optional[float] = None
+    lighthouse_available: bool = False
+
 class AIInsights(BaseModel):
     overall_score: int = 0
     category_scores: Dict[str, int] = {}
@@ -92,6 +116,10 @@ class AIInsights(BaseModel):
     mobile_issues: List[str] = []
     claude_analysis: Optional[ClaudeAnalysis] = None
     yolo_analysis: Optional[YOLOResults] = None
+    
+    # NEW: Framework feedback
+    framework_feedback: Optional[List[FrameworkFeedback]] = None
+    lighthouse_metrics: Optional[LighthouseMetrics] = None
 
 class CROAnalysisResponse(BaseModel):
     id: str
