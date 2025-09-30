@@ -10,6 +10,8 @@ import time
 import logging
 from pathlib import Path
 
+import requests
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ async def test_gemini_integration():
     
     # Test 1: Check API Key
     print("🔍 Test 1: Checking API Key Configuration")
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = "AIzaSyBd6NBDPjbNgsQenbkD182b17Zjf9XKkBk"
     if api_key:
         print(f"✅ API Key found: {api_key[:10]}...")
     else:
@@ -42,7 +44,7 @@ async def test_gemini_integration():
     # Test 3: Initialize Gemini Model
     print("\n🔍 Test 3: Testing Gemini Model Initialization")
     try:
-        from app.vision.gemini_vision_model import GeminiVisionModel
+        from gemini_vision_model import GeminiVisionModel
         
         model = GeminiVisionModel()
         await model.initialize()

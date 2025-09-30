@@ -8,7 +8,7 @@ from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 
 from app.models import CROData, CROElement, TrustSignal, CTAButton, ElementPosition, AIInsights
-from app.framework.enhanced_cro_framework import EnhancedCROFramework
+from enhanced_cro_framework import EnhancedCROFramework
 
 logger = logging.getLogger(__name__)
 

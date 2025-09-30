@@ -15,13 +15,21 @@ from dotenv import load_dotenv
 from typing import Optional
 
 from app.database import init_db
-from app.enhanced_models import (
-    CROAnalysisRequest, CROAnalysisResponse, EnhancedAnalysisRequest,
-    FrameworkOnlyResponse, HealthCheckResponse, ModelStatus
-)
-from app.services.enhanced_analysis_engine import EnhancedCROAnalysisEngine
+# Fixed imports - use existing models for now, enhanced features in analysis
+from app.models import CROAnalysisRequest, CROAnalysisResponse
 from app.services.cache_service import CacheService
-from app.vision.enhanced_vision_manager import EnhancedVisionManager
+
+# Import the enhanced components we created
+try:
+    from enhanced_vision_manager import EnhancedVisionManager
+    from enhanced_analysis_engine import EnhancedCROAnalysisEngine
+    ENHANCED_AVAILABLE = True
+except ImportError:
+    # Fallback to original components if enhanced ones aren't available
+    from app.vision.vision_manager import VisionManager as EnhancedVisionManager
+    from app.services.analysis_engine import CROAnalysisEngine as EnhancedCROAnalysisEngine
+    ENHANCED_AVAILABLE = False
+    logging.warning("Enhanced components not found, using original components")
 
 # Load environment variables
 load_dotenv()
@@ -43,12 +51,15 @@ async def lifespan(app: FastAPI):
     """Initialize enhanced services on startup"""
     global analysis_engine, cache_service, vision_manager
     
-    logger.info("🚀 Starting Enhanced CRO Analyzer Backend...")
+    if ENHANCED_AVAILABLE:
+        logger.info("🚀 Starting Enhanced CRO Analyzer Backend...")
+    else:
+        logger.info("🚀 Starting CRO Analyzer Backend (Original Components)...")
     
     # Initialize database
     await init_db()
     
-    # Initialize enhanced services
+    # Initialize services
     cache_service = CacheService()
     vision_manager = EnhancedVisionManager()
     analysis_engine = EnhancedCROAnalysisEngine(cache_service, vision_manager)
@@ -57,10 +68,12 @@ async def lifespan(app: FastAPI):
     await vision_manager.initialize_models()
     
     enabled_methods = vision_manager.get_enabled_models()
-    logger.info("✅ Enhanced backend initialized successfully!")
+    logger.info("✅ Backend initialized successfully!")
     logger.info(f"📊 Enabled analysis methods: {enabled_methods}")
-    logger.info("🎯 CRO Framework Integration: Active")
-    logger.info("📋 5-Point Framework: Navigation | Display | Information | Technical | Psychological")
+    
+    if ENHANCED_AVAILABLE:
+        logger.info("🎯 CRO Framework Integration: Active")
+        logger.info("📋 5-Point Framework: Navigation | Display | Information | Technical | Psychological")
     
     yield
     
@@ -69,13 +82,13 @@ async def lifespan(app: FastAPI):
         await cache_service.close()
     if analysis_engine:
         await analysis_engine.close()
-    logger.info("👋 Enhanced backend shutdown complete")
+    logger.info("👋 Backend shutdown complete")
 
-# Create enhanced FastAPI app
+# Create FastAPI app
 app = FastAPI(
-    title="Enhanced CRO Analyzer API",
-    description="AI-Powered + Framework-Based Conversion Rate Optimization Analysis",
-    version="3.0.0",
+    title="Enhanced CRO Analyzer API" if ENHANCED_AVAILABLE else "CRO Analyzer API",
+    description="AI-Powered + Framework-Based Conversion Rate Optimization Analysis" if ENHANCED_AVAILABLE else "AI-Powered Conversion Rate Optimization Analysis",
+    version="3.0.0" if ENHANCED_AVAILABLE else "2.0.0",
     lifespan=lifespan
 )
 
@@ -91,40 +104,55 @@ app.add_middleware(
 @app.get("/")
 async def root():
     """Enhanced health check endpoint"""
-    return {
-        "message": "Enhanced CRO Analyzer Backend",
-        "version": "3.0.0",
-        "status": "healthy",
-        "features": [
+    features = [
+        "AI-Powered CRO Analysis",
+        "Screenshot Analysis",
+        "HTML Element Detection"
+    ]
+    
+    if ENHANCED_AVAILABLE:
+        features.extend([
             "CRO Framework Analysis (5-Point)",
-            "Claude Vision AI",
-            "YOLOv8 Computer Vision",
+            "Gemini Pro Vision",
             "Combined Insights Engine"
-        ],
+        ])
+    
+    return {
+        "message": "Enhanced CRO Analyzer Backend" if ENHANCED_AVAILABLE else "CRO Analyzer Backend",
+        "version": "3.0.0" if ENHANCED_AVAILABLE else "2.0.0",
+        "status": "healthy",
+        "enhanced_features": ENHANCED_AVAILABLE,
+        "features": features,
         "enabled_methods": vision_manager.get_enabled_models() if vision_manager else [],
-        "framework_categories": ["navigation", "display", "information", "technical", "psychological"]
+        "framework_categories": ["navigation", "display", "information", "technical", "psychological"] if ENHANCED_AVAILABLE else []
     }
 
-@app.get("/health", response_model=HealthCheckResponse)
+@app.get("/health")
 async def enhanced_health_check():
     """Detailed health check with framework status"""
     models_status = {}
     if vision_manager:
-        models_status = await vision_manager.get_models_status()
+        if hasattr(vision_manager, 'get_models_status'):
+            models_status = await vision_manager.get_models_status()
+        else:
+            # Fallback for original vision manager
+            models_status = {
+                "vision_models": {
+                    "enabled": True,
+                    "initialized": True,
+                    "ready": len(vision_manager.get_enabled_models()) > 0
+                }
+            }
     
-    # Convert to ModelStatus objects
-    model_statuses = {}
-    for name, status in models_status.items():
-        model_statuses[name] = ModelStatus(**status)
-    
-    return HealthCheckResponse(
-        status="healthy",
-        models=model_statuses,
-        database="sqlite",
-        cache="redis" if cache_service and cache_service.is_connected() else "memory",
-        framework_enabled=True,
-        total_analysis_methods=len(vision_manager.get_enabled_models()) if vision_manager else 0
-    )
+    return {
+        "status": "healthy",
+        "enhanced_features": ENHANCED_AVAILABLE,
+        "models": models_status,
+        "database": "sqlite",
+        "cache": "redis" if cache_service and hasattr(cache_service, 'is_connected') and cache_service.is_connected() else "memory",
+        "framework_enabled": ENHANCED_AVAILABLE,
+        "total_analysis_methods": len(vision_manager.get_enabled_models()) if vision_manager else 0
+    }
 
 @app.get("/api/models")
 async def get_enabled_models():
@@ -133,80 +161,58 @@ async def get_enabled_models():
         return {"enabled_methods": [], "total": 0}
     
     methods = vision_manager.get_enabled_models()
-    status = await vision_manager.get_models_status()
     
-    return {
+    base_response = {
         "enabled_methods": methods,
         "total_methods": len(methods),
-        "methods_status": status,
-        "framework_integration": "active",
-        "framework_categories": {
-            "navigation": "Breadcrumbs, navigation depth, menu complexity",
-            "display": "Fonts, whitespace, element spacing, visual hierarchy",
-            "information": "Product descriptions, images, offers, content completeness",
-            "technical": "Page speed, mobile optimization, performance metrics",
-            "psychological": "Trust signals, return policy, FAQ, color consistency"
-        },
-        "configuration": {
-            "file": "app/vision/vision_manager.py",
-            "message": "To enable/disable models, edit ENABLE_* variables"
-        }
+        "enhanced_features": ENHANCED_AVAILABLE
     }
+    
+    if ENHANCED_AVAILABLE and hasattr(vision_manager, 'get_models_status'):
+        status = await vision_manager.get_models_status()
+        base_response.update({
+            "methods_status": status,
+            "framework_integration": "active",
+            "framework_categories": {
+                "navigation": "Breadcrumbs, navigation depth, menu complexity",
+                "display": "Fonts, whitespace, element spacing, visual hierarchy",
+                "information": "Product descriptions, images, offers, content completeness",
+                "technical": "Page speed, mobile optimization, performance metrics",
+                "psychological": "Trust signals, return policy, FAQ, color consistency"
+            }
+        })
+    
+    return base_response
 
 @app.post("/api/analyze", response_model=CROAnalysisResponse)
 async def analyze_website_enhanced(request: CROAnalysisRequest):
     """Enhanced website analysis with framework integration"""
     try:
         url_str = str(request.url)
-        logger.info(f"🔍 Starting enhanced analysis for: {url_str}")
+        logger.info(f"🔍 Starting {'enhanced ' if ENHANCED_AVAILABLE else ''}analysis for: {url_str}")
         
         if not analysis_engine:
-            raise HTTPException(status_code=500, detail="Enhanced analysis engine not initialized")
+            raise HTTPException(status_code=500, detail="Analysis engine not initialized")
         
-        # Run enhanced analysis
+        # Run analysis
         result = await analysis_engine.analyze_website(
             url=url_str,
             client_name=request.client_name
         )
         
-        logger.info(f"✅ Enhanced analysis completed for {url_str}")
+        logger.info(f"✅ Analysis completed for {url_str}")
         logger.info(f"📊 Overall Score: {result.overall_score}")
         logger.info(f"🎯 Methods Used: {result.models_used}")
         
         return result
         
     except Exception as e:
-        logger.error(f"❌ Enhanced analysis failed for {str(request.url)}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Enhanced analysis failed: {str(e)}")
-
-@app.post("/api/analyze/comprehensive", response_model=CROAnalysisResponse)
-async def analyze_website_comprehensive(request: EnhancedAnalysisRequest):
-    """Comprehensive analysis with configurable options"""
-    try:
-        url_str = str(request.url)
-        logger.info(f"🔍 Starting comprehensive analysis for: {url_str}")
-        logger.info(f"⚙️  Analysis type: {request.analysis_type}")
-        
-        if not analysis_engine:
-            raise HTTPException(status_code=500, detail="Analysis engine not initialized")
-        
-        # TODO: Implement analysis type filtering based on request.analysis_type
-        # For now, run full analysis
-        result = await analysis_engine.analyze_website(
-            url=url_str,
-            client_name=request.client_name
-        )
-        
-        logger.info(f"✅ Comprehensive analysis completed for {url_str}")
-        return result
-        
-    except Exception as e:
-        logger.error(f"❌ Comprehensive analysis failed: {str(e)}")
+        logger.error(f"❌ Analysis failed for {str(request.url)}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.websocket("/api/analyze/ws")
-async def analyze_website_realtime_enhanced(websocket: WebSocket):
-    """Enhanced real-time website analysis with detailed progress"""
+async def analyze_website_realtime(websocket: WebSocket):
+    """Real-time website analysis with detailed progress"""
     await websocket.accept()
     
     try:
@@ -216,22 +222,23 @@ async def analyze_website_realtime_enhanced(websocket: WebSocket):
             await websocket.send_json({"error": "URL parameter required"})
             return
         
-        logger.info(f"🔄 Starting enhanced real-time analysis for: {url}")
+        logger.info(f"🔄 Starting real-time analysis for: {url}")
         
-        # Enhanced progress updates
+        # Progress updates
         await websocket.send_json({
             "status": "started",
-            "message": "Initializing enhanced CRO analysis...",
+            "message": f"Initializing {'enhanced ' if ENHANCED_AVAILABLE else ''}CRO analysis...",
             "progress": 5,
             "current_step": "initialization"
         })
         
-        await websocket.send_json({
-            "status": "framework_setup",
-            "message": "Setting up CRO framework analysis...",
-            "progress": 15,
-            "current_step": "framework"
-        })
+        if ENHANCED_AVAILABLE:
+            await websocket.send_json({
+                "status": "framework_setup",
+                "message": "Setting up CRO framework analysis...",
+                "progress": 15,
+                "current_step": "framework"
+            })
         
         await websocket.send_json({
             "status": "capturing",
@@ -242,17 +249,18 @@ async def analyze_website_realtime_enhanced(websocket: WebSocket):
         
         await websocket.send_json({
             "status": "scraping",
-            "message": "Extracting HTML elements and running framework analysis...",
+            "message": "Extracting HTML elements...",
             "progress": 45,
             "current_step": "scraping"
         })
         
-        await websocket.send_json({
-            "status": "framework_analysis",
-            "message": "Analyzing navigation, display, information, technical, and psychological factors...",
-            "progress": 65,
-            "current_step": "framework_analysis"
-        })
+        if ENHANCED_AVAILABLE:
+            await websocket.send_json({
+                "status": "framework_analysis",
+                "message": "Analyzing navigation, display, information, technical, and psychological factors...",
+                "progress": 65,
+                "current_step": "framework_analysis"
+            })
         
         enabled_methods = vision_manager.get_enabled_models()
         await websocket.send_json({
@@ -264,17 +272,17 @@ async def analyze_website_realtime_enhanced(websocket: WebSocket):
         
         await websocket.send_json({
             "status": "combining",
-            "message": "Combining framework and AI insights...",
+            "message": "Combining insights...",
             "progress": 90,
             "current_step": "combining"
         })
         
-        # Run actual enhanced analysis
+        # Run actual analysis
         result = await analysis_engine.analyze_website(url)
         
         await websocket.send_json({
             "status": "complete",
-            "message": f"Enhanced analysis completed! Score: {result.overall_score}/100",
+            "message": f"Analysis completed! Score: {result.overall_score}/100",
             "progress": 100,
             "current_step": "complete",
             "report": result.model_dump(),
@@ -282,24 +290,29 @@ async def analyze_website_realtime_enhanced(websocket: WebSocket):
                 "overall_score": result.overall_score,
                 "methods_used": result.models_used,
                 "recommendations_count": len(result.recommendations),
-                "framework_categories": len([cat for cat in ["navigation", "display", "information", "technical", "psychological"] 
-                                           if cat in result.visual_analysis.category_scores])
+                "enhanced_features": ENHANCED_AVAILABLE
             }
         })
         
     except WebSocketDisconnect:
         logger.info("WebSocket connection closed")
     except Exception as e:
-        logger.error(f"Enhanced WebSocket analysis failed: {str(e)}")
+        logger.error(f"WebSocket analysis failed: {str(e)}")
         await websocket.send_json({
             "status": "error",
             "error": str(e),
-            "message": "Enhanced analysis failed"
+            "message": "Analysis failed"
         })
 
 @app.get("/api/framework/categories")
 async def get_framework_categories():
     """Get detailed information about framework categories"""
+    if not ENHANCED_AVAILABLE:
+        return {
+            "message": "Framework analysis not available",
+            "note": "Enhanced features not loaded"
+        }
+    
     return {
         "framework_version": "1.0",
         "categories": {
@@ -341,48 +354,32 @@ async def get_framework_categories():
         }
     }
 
-@app.get("/api/reports")
-async def get_reports(url: Optional[str] = Query(None)):
-    """Get analysis reports (placeholder for future implementation)"""
-    if not url:
-        return {
-            "reports": [],
-            "message": "Historical reports feature coming soon",
-            "note": "Enhanced reports will include framework analysis trends"
-        }
-    
-    # TODO: Implement historical report retrieval
+@app.get("/api/framework/status")
+async def get_framework_status():
+    """Get framework analysis status"""
     return {
-        "url": url,
-        "reports": [],
-        "message": f"No historical reports found for {url}",
-        "suggestion": "Run a new analysis to generate a report"
-    }
-
-@app.get("/api/analytics/summary")
-async def get_analytics_summary():
-    """Get analytics summary (placeholder)"""
-    return {
-        "message": "Analytics feature coming soon",
-        "planned_features": [
-            "Framework category trends",
-            "Common issues across sites",
-            "Improvement recommendations effectiveness",
-            "Industry benchmarking"
-        ]
+        "framework_enabled": ENHANCED_AVAILABLE,
+        "categories": ["navigation", "display", "information", "technical", "psychological"] if ENHANCED_AVAILABLE else [],
+        "version": "1.0" if ENHANCED_AVAILABLE else "not_available",
+        "integration_status": "active" if ENHANCED_AVAILABLE else "not_loaded"
     }
 
 if __name__ == "__main__":
     import uvicorn
     
-    # Enhanced startup message
-    print("🚀 Starting Enhanced CRO Analyzer Backend...")
-    print("📊 Features: Framework Analysis + AI Models")
-    print("🎯 Framework: 5-Point CRO Analysis")
-    print("🤖 AI Models: Claude Vision + YOLOv8")
+    # Startup message
+    if ENHANCED_AVAILABLE:
+        print("🚀 Starting Enhanced CRO Analyzer Backend...")
+        print("📊 Features: Framework Analysis + AI Models")
+        print("🎯 Framework: 5-Point CRO Analysis")
+        print("🤖 AI Models: Gemini Pro Vision + Framework")
+    else:
+        print("🚀 Starting CRO Analyzer Backend...")
+        print("⚠️  Enhanced features not available - using original components")
+        print("💡 To enable enhanced features, ensure enhanced files are in correct locations")
     
     uvicorn.run(
-        "main:app",
+        "enhanced_main:app",  # Fixed: reference to this file
         host="0.0.0.0",
         port=8080,
         reload=True,

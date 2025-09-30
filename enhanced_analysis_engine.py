@@ -9,8 +9,8 @@ from typing import Tuple
 from app.models import CROAnalysisResponse, CategoryScores, AIInsights, CROData
 from app.services.cache_service import CacheService
 from app.services.screenshot_service import ScreenshotService
-from app.services.enhanced_scraping_service import EnhancedScrapingService
-from app.vision.enhanced_vision_manager import EnhancedVisionManager
+from enhanced_scraping_service import EnhancedScrapingService
+from enhanced_vision_manager import EnhancedVisionManager
 from app.database import async_session, WebsiteAnalysis
 
 logger = logging.getLogger(__name__)

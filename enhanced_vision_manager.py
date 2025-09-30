@@ -1,12 +1,28 @@
-"""Enhanced Vision Manager with CRO Framework Integration"""
+"""Enhanced Vision Manager with CRO Framework Integration - FIXED VERSION"""
 
 import logging
 from typing import List, Dict, Any
 import asyncio
 
 from app.models import AIInsights, CROData, Recommendation
-from app.vision.claude_model import ClaudeVisionModel
-from app.vision.gemini_vision_model import GeminiVisionModel
+
+# Import the fixed Gemini model
+try:
+    from fixed_gemini_vision_model import GeminiVisionModel
+    GEMINI_AVAILABLE = True
+except ImportError:
+    try:
+        from gemini_vision_model import GeminiVisionModel
+        GEMINI_AVAILABLE = True
+    except ImportError:
+        GEMINI_AVAILABLE = False
+
+# Try to import Claude
+try:
+    from app.vision.claude_model import ClaudeVisionModel
+    CLAUDE_AVAILABLE = True
+except ImportError:
+    CLAUDE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +54,7 @@ class EnhancedVisionManager:
         logger.info("🤖 Initializing enhanced AI vision models...")
         
         # Initialize Claude Vision Model
-        if ENABLE_CLAUDE_VISION:
+        if ENABLE_CLAUDE_VISION and CLAUDE_AVAILABLE:
             try:
                 self.claude_model = ClaudeVisionModel()
                 await self.claude_model.initialize()
@@ -50,10 +66,13 @@ class EnhancedVisionManager:
             except Exception as e:
                 logger.error(f"❌ Claude Vision Model failed to initialize: {e}")
         else:
-            logger.info("🚫 Claude Vision Model disabled by configuration")
+            if ENABLE_CLAUDE_VISION and not CLAUDE_AVAILABLE:
+                logger.warning("⚠️  Claude Vision enabled but not available")
+            else:
+                logger.info("🚫 Claude Vision Model disabled by configuration")
         
         # Initialize Gemini Pro Vision Model
-        if ENABLE_GEMINI_VISION:
+        if ENABLE_GEMINI_VISION and GEMINI_AVAILABLE:
             try:
                 self.gemini_model = GeminiVisionModel()
                 await self.gemini_model.initialize()
@@ -65,7 +84,10 @@ class EnhancedVisionManager:
             except Exception as e:
                 logger.error(f"❌ Gemini Pro Vision Model failed to initialize: {e}")
         else:
-            logger.info("🚫 Gemini Pro Vision Model disabled by configuration")
+            if ENABLE_GEMINI_VISION and not GEMINI_AVAILABLE:
+                logger.warning("⚠️  Gemini Vision enabled but not available")
+            else:
+                logger.info("🚫 Gemini Pro Vision Model disabled by configuration")
         
         # Legacy YOLO Support Warning
         if ENABLE_YOLO_VISION:
@@ -162,12 +184,8 @@ class EnhancedVisionManager:
         # Add AI-specific analyses to framework insights
         for ai_insight in ai_insights:
             # Preserve Claude analysis
-            if ai_insight.claude_analysis:
+            if hasattr(ai_insight, 'claude_analysis') and ai_insight.claude_analysis:
                 framework_insights.claude_analysis = ai_insight.claude_analysis
-            
-            # Preserve Gemini analysis
-            if hasattr(ai_insight, 'gemini_analysis') and ai_insight.gemini_analysis:
-                framework_insights.gemini_analysis = ai_insight.gemini_analysis
             
             # Legacy YOLO support (if somehow still present)
             if hasattr(ai_insight, 'yolo_analysis') and ai_insight.yolo_analysis:
@@ -239,9 +257,9 @@ class EnhancedVisionManager:
         
         # Add model-specific results
         for insights in ai_insights:
-            if insights.claude_analysis:
+            if hasattr(insights, 'claude_analysis') and insights.claude_analysis:
                 combined.claude_analysis = insights.claude_analysis
-            if insights.yolo_analysis:
+            if hasattr(insights, 'yolo_analysis') and insights.yolo_analysis:
                 combined.yolo_analysis = insights.yolo_analysis
         
         return combined
@@ -270,7 +288,9 @@ class EnhancedVisionManager:
         # Add AI model indicators
         if hasattr(insights, 'claude_analysis') and insights.claude_analysis:
             insights.visual_issues.append("🤖 Claude Vision analysis included")
-        if hasattr(insights, 'gemini_analysis') and insights.gemini_analysis:
+        
+        # Check for Gemini in visual_issues (since we add it there)
+        if any("Gemini Pro Vision" in issue for issue in insights.visual_issues):
             insights.visual_issues.append("🚀 Gemini Pro Vision analysis included")
         
         return insights
